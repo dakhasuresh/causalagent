@@ -1,0 +1,170 @@
+# CausalAgent :: MITRE ATT&CK for ICS — Technique Scoring Rules
+# ================================================================
+# Indicator weights for each ICS technique.
+# Used by MitreICSClassifier.classify(events).
+#
+# Indicator schema:
+#   tag:        OT tag name (optional — use tag OR protocol)
+#   protocol:   OT protocol name (optional)
+#   condition:  present | value_deviation_pct | severity_crit |
+#               high_event_rate | cross_zone_protocol
+#   threshold:  numeric threshold for condition (where applicable)
+#   weight:     contribution to technique confidence (0.0 – 1.0, sum to 1.0)
+#
+# Reference: https://attack.mitre.org/matrices/ics/
+
+T0836:
+  name: "Modify Parameter"
+  tactic: "Impair Process Control"
+  indicators:
+    - tag: FCV-R2
+      condition: value_deviation_pct
+      threshold: 30
+      weight: 0.40
+    - protocol: DNP3
+      condition: present
+      weight: 0.20
+    - tag: EW-04
+      condition: present
+      weight: 0.25
+    - tag: FCV-R2
+      condition: severity_crit
+      weight: 0.15
+
+T0855:
+  name: "Unauthorized Command Message"
+  tactic: "Impair Process Control"
+  indicators:
+    - tag: FCV-R2
+      condition: severity_crit
+      weight: 0.35
+    - protocol: DNP3
+      condition: present
+      weight: 0.30
+    - tag: EW-04
+      condition: severity_crit
+      weight: 0.20
+    - tag: HMI-01
+      condition: severity_crit
+      weight: 0.15
+
+T0814:
+  name: "Denial of Service"
+  tactic: "Inhibit Response Function"
+  indicators:
+    - tag: HMI-01
+      condition: present
+      weight: 0.30
+    - tag: SW-03
+      condition: value_deviation_pct
+      threshold: 10
+      weight: 0.35
+    - tag: PLC-L3-A
+      condition: severity_crit
+      weight: 0.20
+    - protocol: SNMP
+      condition: present
+      weight: 0.15
+
+T0816:
+  name: "Device Restart/Shutdown"
+  tactic: "Inhibit Response Function"
+  indicators:
+    - tag: PLC-WD
+      condition: severity_crit
+      weight: 0.50
+    - tag: HMI-01
+      condition: severity_crit
+      weight: 0.30
+    - protocol: WinRM
+      condition: present
+      weight: 0.20
+
+T0801:
+  name: "Monitor Process State"
+  tactic: "Collection"
+  indicators:
+    - tag: NET-SCAN
+      condition: present
+      weight: 0.40
+    - tag: PLC-PROBE
+      condition: present
+      weight: 0.35
+    - protocol: Modbus/TCP
+      condition: high_event_rate
+      threshold: 20
+      weight: 0.25
+
+T0828:
+  name: "Loss of Productivity and Revenue"
+  tactic: "Impact"
+  indicators:
+    - tag: PT-R2-01
+      condition: value_deviation_pct
+      threshold: 10
+      weight: 0.40
+    - tag: PLC-L3-A
+      condition: severity_crit
+      weight: 0.35
+    - tag: HMI-01
+      condition: present
+      weight: 0.25
+
+T0813:
+  name: "Denial of Control"
+  tactic: "Inhibit Response Function"
+  indicators:
+    - tag: HMI-01
+      condition: severity_crit
+      weight: 0.45
+    - protocol: OPC-UA
+      condition: present
+      weight: 0.30
+    - tag: EW-04
+      condition: severity_crit
+      weight: 0.25
+
+T0835:
+  name: "Manipulate I/O Image"
+  tactic: "Impair Process Control"
+  indicators:
+    - tag: FCV-R2
+      condition: value_deviation_pct
+      threshold: 50
+      weight: 0.50
+    - tag: PT-R2-01
+      condition: value_deviation_pct
+      threshold: 15
+      weight: 0.30
+    - protocol: DNP3
+      condition: present
+      weight: 0.20
+
+T0831:
+  name: "Manipulation of Control"
+  tactic: "Impair Process Control"
+  indicators:
+    - tag: FCV-R2
+      condition: severity_crit
+      weight: 0.40
+    - tag: PT-R2-01
+      condition: severity_crit
+      weight: 0.35
+    - tag: EW-04
+      condition: present
+      weight: 0.25
+
+T0840:
+  name: "Network Connection Enumeration"
+  tactic: "Discovery"
+  indicators:
+    - tag: NET-SCAN
+      condition: severity_crit
+      weight: 0.55
+    - tag: PLC-PROBE
+      condition: present
+      weight: 0.30
+    - protocol: Modbus/TCP
+      condition: high_event_rate
+      threshold: 15
+      weight: 0.15

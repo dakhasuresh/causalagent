@@ -1,0 +1,103 @@
+[
+  {
+    "pattern_id": "PAT-0001",
+    "created_at": 1704067200.0,
+    "incident_class": "RELIABILITY",
+    "root_cause_id": "switch_firmware_bug",
+    "root_cause_label": "OT Switch Firmware Regression",
+    "trigger_tags": ["SW-03", "PLC-L3-A", "HMI-01"],
+    "trigger_protocols": ["SNMP", "Modbus/TCP", "OPC-UA", "Syslog"],
+    "causal_chain": ["switch_firmware_bug", "modbus_tcp_timeout", "opcua_subscription_loss"],
+    "resolution_actions": [
+      "Activate redundant switch uplink (RSTP failover)",
+      "Rollback SW-03 firmware to v3.1.8",
+      "Acknowledge HMI false alarm"
+    ],
+    "outcome": "Comms restored in 6 min. Firmware rollback completed. False alarm cleared. Firmware change freeze applied.",
+    "mttr_minutes": 6.0,
+    "confidence_at_resolution": 0.93,
+    "reuse_count": 28,
+    "accuracy_feedback": 0.96
+  },
+  {
+    "pattern_id": "PAT-0002",
+    "created_at": 1706745600.0,
+    "incident_class": "CYBER",
+    "root_cause_id": "ew_workstation_compromise",
+    "root_cause_label": "Engineering Workstation Compromise",
+    "trigger_tags": ["EW-04", "FCV-R2", "PT-R2-01", "HMI-01"],
+    "trigger_protocols": ["WinRM", "DNP3", "OPC-UA", "NetFlow"],
+    "causal_chain": ["ew_workstation_compromise", "dnp3_setpoint_tamper", "hmi_session_termination", "reactor_pressure_excursion"],
+    "resolution_actions": [
+      "Network isolate EW-04 at DMZ firewall",
+      "Revert FCV-R2 setpoint to validated snapshot",
+      "Restore HMI-01 OPC-UA session from backup endpoint",
+      "Capture EW-04 forensic image for IR team"
+    ],
+    "outcome": "EW-04 isolated. FCV setpoint restored. Pressure normalised. SIL-2 trip avoided. C2 beacon blocked.",
+    "mttr_minutes": 14.0,
+    "confidence_at_resolution": 0.94,
+    "reuse_count": 7,
+    "accuracy_feedback": 0.97
+  },
+  {
+    "pattern_id": "PAT-0003",
+    "created_at": 1709251200.0,
+    "incident_class": "RELIABILITY",
+    "root_cause_id": "opcua_cert_expiry",
+    "root_cause_label": "OPC-UA Certificate Expiry",
+    "trigger_tags": ["OPC-CERT", "HMI-01"],
+    "trigger_protocols": ["OPC-UA"],
+    "causal_chain": ["opcua_cert_expiry", "hmi_session_drop"],
+    "resolution_actions": [
+      "Renew OPC-UA server certificate (self-signed 2yr)",
+      "Redeploy certificate to OPC-UA server",
+      "Re-establish HMI-01 subscription"
+    ],
+    "outcome": "Certificate renewed and redeployed. HMI subscription restored. False alarm acknowledged.",
+    "mttr_minutes": 22.0,
+    "confidence_at_resolution": 0.97,
+    "reuse_count": 34,
+    "accuracy_feedback": 0.98
+  },
+  {
+    "pattern_id": "PAT-0004",
+    "created_at": 1711929600.0,
+    "incident_class": "RELIABILITY",
+    "root_cause_id": "plc_cpu_overload",
+    "root_cause_label": "PLC CPU Overload",
+    "trigger_tags": ["PLC-CPU", "PLC-SCAN", "PLC-WD"],
+    "trigger_protocols": ["Modbus/TCP", "OPC-UA"],
+    "causal_chain": ["plc_cpu_overload", "scan_time_violation", "watchdog_trip"],
+    "resolution_actions": [
+      "Offload background comms tasks from PLC to gateway",
+      "Reduce ladder logic scan rate for non-critical rungs",
+      "Cold restart PLC after watchdog trip"
+    ],
+    "outcome": "PLC CPU reduced to 62%. Scan time restored to 18ms. Watchdog timer reset. No process impact.",
+    "mttr_minutes": 35.0,
+    "confidence_at_resolution": 0.91,
+    "reuse_count": 22,
+    "accuracy_feedback": 0.94
+  },
+  {
+    "pattern_id": "PAT-0005",
+    "created_at": 1714521600.0,
+    "incident_class": "CYBER",
+    "root_cause_id": "ot_network_scan",
+    "root_cause_label": "OT Network Enumeration",
+    "trigger_tags": ["NET-SCAN", "PLC-PROBE"],
+    "trigger_protocols": ["Modbus/TCP", "NetFlow"],
+    "causal_chain": ["ot_network_scan", "plc_connection_probe"],
+    "resolution_actions": [
+      "Block scanning source at L3/L2 boundary firewall",
+      "Enable connection rate limiting on OT VLAN",
+      "Notify IR team for source attribution"
+    ],
+    "outcome": "Scanning blocked. No process impact. Source attributed to external threat actor — IR escalated.",
+    "mttr_minutes": 8.0,
+    "confidence_at_resolution": 0.88,
+    "reuse_count": 5,
+    "accuracy_feedback": 0.91
+  }
+]

@@ -1,0 +1,188 @@
+# CausalAgent :: Causal Rules — Reliability Incidents
+# ======================================================
+# YAML-driven cause-effect graph for OT reliability failure patterns.
+# Each rule represents a node in the causal graph.
+# Engine: CausalGraphBuilder.evaluate_rules()
+#
+# Rule schema:
+#   name:                  Human-readable label
+#   trigger_tags:          OT tags that must appear in the event stream
+#   trigger_conditions:    Optional value/severity constraints
+#   causes:                List of rule_ids this rule propagates to
+#   node_type:             ROOT_CAUSE | EFFECT | SYMPTOM
+#   zone:                  Purdue Model zone (L0–L4, DMZ)
+#   mitre_ttp:             MITRE ATT&CK for ICS TTP (null for reliability)
+#   iec_62443_sl:          Security level if applicable (null for reliability)
+#   explanation_template:  Human-readable explanation for XAI trace
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATTERN: Network switch firmware regression → Modbus cascade
+# Incident: INC-2024-0892
+# ─────────────────────────────────────────────────────────────────────────────
+
+switch_firmware_bug:
+  name: "OT Switch Firmware Regression"
+  trigger_tags:
+    - SW-03
+  trigger_conditions:
+    # Packet loss threshold alone fires this rule.
+    # Severity is independent — WARN-level packet loss at 5%+ is still
+    # a valid causal signal. High severity is expected at higher thresholds
+    # but must NOT gate rule firing (discovered in QA: WARN-only events
+    # failed to produce root cause despite meeting value threshold).
+    - tag: SW-03
+      operator: ">="
+      value: 5.0
+      unit: "%loss"
+  causes:
+    - modbus_tcp_timeout
+  node_type: ROOT_CAUSE
+  zone: L2
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    OT network switch SW-03 exhibiting {value}% packet loss following
+    firmware maintenance. STP recalculation loop detected in syslog.
+    This is a classic post-maintenance regression pattern in managed
+    OT switches — firmware rollback to last known-good is the
+    deterministic remediation.
+
+modbus_tcp_timeout:
+  name: "Modbus/TCP Communication Timeout"
+  trigger_tags:
+    - PLC-L3-A
+  trigger_conditions:
+    - tag: PLC-L3-A
+      severity: CRIT
+  causes:
+    - opcua_subscription_loss
+  node_type: EFFECT
+  zone: L1
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    PLC-L3-A Modbus/TCP polls failing with exception code 0x04
+    (server device failure). This is caused by upstream network
+    packet loss on OT VLAN 20 — not a PLC fault. Register 40001
+    is unresponsive due to frame drops, not controller failure.
+
+opcua_subscription_loss:
+  name: "OPC-UA Subscription Timeout — HMI"
+  trigger_tags:
+    - HMI-01
+  trigger_conditions:
+    - tag: HMI-01
+      severity: WARN
+  causes: []
+  node_type: SYMPTOM
+  zone: L2
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    HMI-01 OPC-UA subscription to PLC-L3-A has timed out (5000ms
+    threshold exceeded). This is a false loss-of-comms alarm —
+    the process is running normally. The PLC controller is
+    operational; only the communication path is disrupted.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATTERN: PLC CPU overload → scan time violation → watchdog trip
+# ─────────────────────────────────────────────────────────────────────────────
+
+plc_cpu_overload:
+  name: "PLC CPU Overload"
+  trigger_tags:
+    - PLC-CPU
+  trigger_conditions:
+    - tag: PLC-CPU
+      operator: ">="
+      value: 85.0
+      unit: "%"
+  causes:
+    - scan_time_violation
+  node_type: ROOT_CAUSE
+  zone: L1
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    PLC CPU utilisation at {value}% — exceeding safe operating
+    threshold (85%). Likely cause: excessive rungs in ladder logic
+    or background communication tasks consuming scan cycles.
+
+scan_time_violation:
+  name: "PLC Scan Time Violation"
+  trigger_tags:
+    - PLC-SCAN
+  trigger_conditions:
+    - tag: PLC-SCAN
+      operator: ">"
+      value: 50.0
+      unit: "ms"
+  causes:
+    - watchdog_trip
+  node_type: EFFECT
+  zone: L1
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    PLC scan time exceeding 50ms safety margin. At this scan rate,
+    real-time control guarantees cannot be maintained. Watchdog
+    timer trip is imminent if scan time continues to increase.
+
+watchdog_trip:
+  name: "PLC Watchdog Trip"
+  trigger_tags:
+    - PLC-WD
+  trigger_conditions:
+    - tag: PLC-WD
+      severity: CRIT
+  causes: []
+  node_type: SYMPTOM
+  zone: L1
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    PLC watchdog timer has tripped, placing the controller in
+    safe-state. This is a protective mechanism — the watchdog
+    fired because the scan time exceeded its configured limit.
+    Root cause is CPU overload, not hardware failure.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATTERN: OPC-UA certificate expiry → HMI subscription loss
+# ─────────────────────────────────────────────────────────────────────────────
+
+opcua_cert_expiry:
+  name: "OPC-UA Certificate Expiry"
+  trigger_tags:
+    - OPC-CERT
+  trigger_conditions:
+    - tag: OPC-CERT
+      severity: WARN
+  causes:
+    - hmi_session_drop
+  node_type: ROOT_CAUSE
+  zone: L2
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    OPC-UA server certificate has expired. Clients enforcing
+    certificate validation (as required by IEC 62541-6) will
+    refuse connections. Certificate renewal is the remediation —
+    not a network or controller fault.
+
+hmi_session_drop:
+  name: "HMI Session Drop — Certificate Rejected"
+  trigger_tags:
+    - HMI-01
+  trigger_conditions:
+    - tag: HMI-01
+      severity: WARN
+  causes: []
+  node_type: SYMPTOM
+  zone: L2
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    HMI-01 OPC-UA session dropped because the server certificate
+    was rejected. This appears as a loss-of-comms alarm but the
+    process is running normally. Renewing and redeploying the
+    OPC-UA server certificate will restore connectivity.

@@ -1,0 +1,14 @@
+# CausalAgent — Python dependencies
+#
+# Runtime
+pyyaml>=6.0.1       # YAML rule loading (causal rules, guardrails, MITRE indicators)
+#
+# Development / testing
+pytest>=7.4.0       # Unit test runner (93 tests across 3 modules)
+#
+# Optional — install for performance profiling
+# pytest-benchmark>=4.0
+#
+# No ML framework dependencies by design.
+# CausalAgent uses deterministic rule evaluation and Jaccard similarity —
+# no neural networks, no embeddings, no trained model artefacts.

@@ -1,0 +1,148 @@
+# CausalAgent :: Causal Rules — Cyber Incidents
+# ================================================
+# YAML-driven causal graph for OT cyber attack patterns.
+# Aligned with MITRE ATT&CK® for ICS technique taxonomy.
+#
+# Techniques referenced:
+#   T0836  Modify Parameter          (Impair Process Control)
+#   T0855  Unauthorized Command      (Impair Process Control)
+#   T0814  Denial of Service         (Inhibit Response Function)
+#   T0816  Device Restart/Shutdown   (Inhibit Response Function)
+#   T0801  Monitor Process State     (Collection)
+#   T0840  Network Connection Enum   (Discovery)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATTERN: Workstation compromise → OT lateral move → control manipulation
+# Incident: INC-2024-0891
+# ─────────────────────────────────────────────────────────────────────────────
+
+ew_workstation_compromise:
+  name: "Engineering Workstation Compromise"
+  trigger_tags:
+    - EW-04
+  trigger_conditions:
+    - tag: EW-04
+      severity: CRIT
+  causes:
+    - dnp3_setpoint_tamper
+    - hmi_session_termination
+  node_type: ROOT_CAUSE
+  zone: DMZ
+  mitre_ttp: T0836
+  iec_62443_sl: SL-3
+  explanation_template: >
+    Engineering workstation EW-04 exhibits indicators of compromise:
+    elevated WinRM event rate, outbound C2 beacon to {value}.
+    Threat actor pivoted from IT network via DMZ jump server.
+    MITRE T0836 (Modify Parameter) pattern consistent with
+    adversary establishing OT foothold prior to process manipulation.
+    IEC 62443 SL-3 boundary violated — DMZ isolation controls bypassed.
+
+dnp3_setpoint_tamper:
+  name: "DNP3 Setpoint Tampering — FCV-R2"
+  trigger_tags:
+    - FCV-R2
+  trigger_conditions:
+    - tag: FCV-R2
+      operator: "<="
+      value: 20.0
+      unit: "%"
+    - tag: FCV-R2
+      severity: CRIT
+  causes:
+    - reactor_pressure_excursion
+  node_type: EFFECT
+  zone: L1
+  mitre_ttp: T0855
+  iec_62443_sl: SL-2
+  explanation_template: >
+    FCV-R2 (flow control valve) position at {value}% — far below
+    validated setpoint of 50%. DNP3 direct operate command spoofed
+    or replayed by threat actor to cause upstream flow restriction.
+    MITRE T0855 (Unauthorized Command Message) — this is adversarial
+    setpoint modification, not a valve fault. IEC 62443-3-3 SR 2.6
+    (use control) requires human verification before any remediation.
+
+hmi_session_termination:
+  name: "HMI Session Forced Termination"
+  trigger_tags:
+    - HMI-01
+  trigger_conditions:
+    - tag: HMI-01
+      severity: WARN
+  causes: []
+  node_type: EFFECT
+  zone: L2
+  mitre_ttp: T0814
+  iec_62443_sl: SL-2
+  explanation_template: >
+    HMI-01 operator session terminated unexpectedly during the
+    incident window. Consistent with MITRE T0814 (Denial of Service)
+    — adversary likely killed operator visibility to reduce chance
+    of detection during FCV manipulation. This is a tactical
+    concurrent action, not an independent fault.
+
+reactor_pressure_excursion:
+  name: "Reactor R2 Pressure Excursion"
+  trigger_tags:
+    - PT-R2-01
+  trigger_conditions:
+    - tag: PT-R2-01
+      operator: ">="
+      value: 140.0
+      unit: "bar"
+  causes: []
+  node_type: SYMPTOM
+  zone: L1
+  mitre_ttp: null
+  iec_62443_sl: null
+  explanation_template: >
+    Reactor R2 upstream pressure at {value} bar and rising at
+    +1.4 bar/min due to FCV flow restriction. SIL-2 trip setpoint
+    is 150 bar — current headroom is {headroom} bar. This is a
+    process consequence of the adversarial FCV manipulation, not
+    an independent process fault. Emergency shutdown (ESD) is NOT
+    recommended at this confidence level — restore FCV setpoint first.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PATTERN: ICS network enumeration → reconnaissance precursor
+# ─────────────────────────────────────────────────────────────────────────────
+
+ot_network_scan:
+  name: "OT Network Enumeration"
+  trigger_tags:
+    - NET-SCAN
+  trigger_conditions:
+    - tag: NET-SCAN
+      severity: WARN
+  causes:
+    - plc_connection_probe
+  node_type: ROOT_CAUSE
+  zone: DMZ
+  mitre_ttp: T0840
+  iec_62443_sl: SL-2
+  explanation_template: >
+    Anomalous network scanning activity detected on OT VLAN.
+    Sweep pattern consistent with MITRE T0840 (Network Connection
+    Enumeration) — adversary mapping live OT assets prior to
+    targeted manipulation. Immediate network isolation of scanning
+    source recommended.
+
+plc_connection_probe:
+  name: "PLC Connection Probe"
+  trigger_tags:
+    - PLC-PROBE
+  trigger_conditions:
+    - tag: PLC-PROBE
+      severity: WARN
+  causes: []
+  node_type: EFFECT
+  zone: L1
+  mitre_ttp: T0801
+  iec_62443_sl: SL-2
+  explanation_template: >
+    PLC-level connection probes detected — external host attempting
+    Modbus and DNP3 connections to field controllers. Consistent
+    with MITRE T0801 (Monitor Process State) — passive reconnaissance
+    phase prior to active manipulation. No process impact yet but
+    adversary has mapped the OT attack surface.

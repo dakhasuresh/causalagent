@@ -1,0 +1,159 @@
+# CausalAgent :: Safety Guardrail Rules
+# =======================================
+# IEC 62443-3-3 aligned guardrails enforced by SafetyEngine.
+# Each rule defines a condition under which an action is blocked,
+# escalated, or requires human gate.
+#
+# Rule schema:
+#   name:                    Human-readable guardrail name
+#   applies_to_action_types: [list of action_type values]
+#   applies_to_zones:        [list of Purdue zones — empty = all zones]
+#   condition:               Trigger condition key (see SafetyEngine._rule_fires)
+#   decision:                BLOCK | ESCALATE | HUMAN_GATE
+#   iec_clause:              Normative IEC 62443 clause reference
+#   reason_template:         Message shown to operator (supports {variable} substitution)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BLOCK RULES — action must not execute under any circumstance
+# ─────────────────────────────────────────────────────────────────────────────
+
+gr_block_auto_control_during_cyber:
+  name: "Block Autonomous Control Commands During Active Cyber Incident"
+  applies_to_action_types:
+    - setpoint_revert
+    - config_change
+    - emergency_shutdown
+  applies_to_zones:
+    - L0
+    - L1
+  condition: active_cyber
+  decision: BLOCK
+  iec_clause: "IEC 62443-3-3 SR 2.6 — Use Control"
+  reason_template: >
+    Autonomous control commands to {target_tag} ({zone}) are blocked during
+    an active cyber incident (classification: {classification}). Adversary
+    may be manipulating process state — automated commands without human
+    verification risk compounding the attack. IEC 62443-3-3 SR 2.6 requires
+    human authorisation for use-control changes in this security context.
+
+gr_block_esd_without_verified_cause:
+  name: "Block Emergency Shutdown Without Verified Root Cause"
+  applies_to_action_types:
+    - emergency_shutdown
+  applies_to_zones: []
+  condition: unverified_cause
+  decision: BLOCK
+  iec_clause: "IEC 62443-3-3 SR 3.6 — Timely Response to Events"
+  reason_template: >
+    Emergency shutdown of {target_tag} blocked: root cause not yet
+    verified (engine confidence {confidence}). ESD triggers SIL-2 trip
+    which is irreversible in the short term and causes 8–12 hours of
+    production loss. Per IEC 62443-3-3 SR 3.6, a timely but measured
+    response is required — verify causal chain before triggering ESD.
+
+gr_block_uncertain_l0_commands:
+  name: "Block L0 Field Device Commands Under Low Confidence"
+  applies_to_action_types:
+    - config_change
+    - setpoint_revert
+    - emergency_shutdown
+  applies_to_zones:
+    - L0
+  condition: uncertain_cause
+  decision: BLOCK
+  iec_clause: "IEC 62443-3-3 SR 2.6 — Use Control; IEC 61511 SIL-2"
+  reason_template: >
+    Commands to L0 field device {target_tag} blocked: causal confidence
+    {confidence} is below 75% threshold. L0 devices (sensors, actuators)
+    are in the SIL-2 safety layer — incorrect commands at this layer
+    risk bypassing safety instrumented system (SIS) protections.
+    Increase evidence confidence before proceeding.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ESCALATE RULES — must go to senior engineer or safety officer
+# ─────────────────────────────────────────────────────────────────────────────
+
+gr_escalate_sil_zone_modifications:
+  name: "Escalate Any Modification to SIL-Protected Zones"
+  applies_to_action_types:
+    - config_change
+    - setpoint_revert
+    - firmware_rollback
+  applies_to_zones:
+    - L0
+    - L1
+  condition: sil_zone
+  decision: ESCALATE
+  iec_clause: "IEC 61511 Clause 11 — Safety Instrumented System Management"
+  reason_template: >
+    Modification to {target_tag} in {zone} (SIL-protected zone) requires
+    escalation to process safety engineer. IEC 61511 Clause 11 mandates
+    that changes to SIS-adjacent devices follow the management of change
+    (MOC) process. This action has been queued for senior engineer review.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HUMAN_GATE RULES — require operator approval before execution
+# ─────────────────────────────────────────────────────────────────────────────
+
+gr_human_gate_network_isolation:
+  name: "Human Approval for OT Network Isolation Actions"
+  applies_to_action_types:
+    - network_isolate
+  applies_to_zones: []
+  condition: production_active
+  decision: HUMAN_GATE
+  iec_clause: "IEC 62443-3-3 SR 5.1 — Network Segmentation"
+  reason_template: >
+    Network isolation of {target_tag} requires human approval: production
+    is active and isolation may disrupt legitimate OT traffic on {zone}.
+    Operator must confirm the isolation scope (host-level vs VLAN-level)
+    before execution. IEC 62443-3-3 SR 5.1 requires documented justification
+    for network segmentation changes affecting operational zones.
+
+gr_human_gate_setpoint_revert:
+  name: "Human Approval for All Setpoint Revert Actions"
+  applies_to_action_types:
+    - setpoint_revert
+  applies_to_zones:
+    - L1
+    - L2
+  condition: always
+  decision: HUMAN_GATE
+  iec_clause: "IEC 62443-3-3 SR 2.6 — Use Control"
+  reason_template: >
+    Setpoint revert on {target_tag} requires human approval before
+    execution. Setpoint changes directly affect the controlled process —
+    operator must confirm the target value is safe given current process
+    state. IEC 62443-3-3 SR 2.6: use control enforcement for process-
+    critical parameters.
+
+gr_human_gate_firmware_rollback:
+  name: "Human Approval for Firmware Rollback on Active OT Devices"
+  applies_to_action_types:
+    - firmware_rollback
+  applies_to_zones: []
+  condition: production_active
+  decision: HUMAN_GATE
+  iec_clause: "IEC 62443-2-3 — Patch Management in the IACS Environment"
+  reason_template: >
+    Firmware rollback on {target_tag} requires human approval:
+    device is active in production. Rollback causes a momentary
+    reboot (typically 30–90s service interruption). IEC 62443-2-3
+    requires change management approval for all firmware modifications
+    in an operational environment. Verify maintenance window before
+    executing.
+
+gr_human_gate_forensic_capture:
+  name: "Human Approval for Forensic Memory Capture"
+  applies_to_action_types:
+    - forensic_capture
+  applies_to_zones: []
+  condition: always
+  decision: HUMAN_GATE
+  iec_clause: "IEC 62443-2-1 4.3.3 — Incident Response"
+  reason_template: >
+    Forensic capture of {target_tag} requires IR team authorisation.
+    Memory capture is non-destructive but must be coordinated with
+    incident response procedures. IEC 62443-2-1 4.3.3 requires that
+    evidence collection follows documented IR procedures to preserve
+    chain of custody for post-incident analysis.
